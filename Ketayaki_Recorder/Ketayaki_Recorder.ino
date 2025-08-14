@@ -14,7 +14,7 @@
 #define TFT_WIDTH 320    // Displayのx方向ビット数
 #define TFT_HEIGHT 240   // Displayのy方向ビット数
 #define SD_FILENAME "/Reflow_Tempdata.csv"
-#define JPEG_FILENAME "/TORICA_LOGO.jpg"
+#define JPEG_FILENAME "TORICA_LOGO.jpg"
 
 // ============ Picoのピン設定============
 
@@ -44,8 +44,6 @@ File myFile;    // Fileクラスのインスタンスを宣言
 GFXcanvas16 canvas(TFT_WIDTH, TFT_HEIGHT);    //スプライト（16bit）通常タッチ画面用
 GFXcanvas16 canvas1(TFT_WIDTH, TFT_HEIGHT);   //スプライト（16bit）通常画像表示用
 
-
-
 //各種計算用変数
 unsigned long time_start = 0;   //リフロー開始時刻
 unsigned long time_now = 0;   //autoリフロー中の経過時間・残り時間計算用(ディスプレイ表示用)
@@ -61,8 +59,6 @@ double data; //グラフプロット時に使用
 int plot_X;
 int plot_Y;
 int Refresh_SD;
-
-
 
 //bool
 bool check_reflow_start = false;  //リフローが始まっているか
@@ -92,7 +88,6 @@ double plot[900];
 double SD_time[900];
 int num_loop = 0; //core0のloopが回った回数を数える
 
-
 enum TOUCH_STATUS { // タッチ状態の保持
   TOUCH_START,
   TOUCHING,
@@ -100,9 +95,8 @@ enum TOUCH_STATUS { // タッチ状態の保持
 };
 TOUCH_STATUS touch_status = RELEASE;
 
-int16_t x; // タッチx座標の保持
-int16_t y; // タッチy座標の保持
-
+int16_t touch_x; // タッチx座標の保持
+int16_t touch_y; // タッチy座標の保持
 
 /******************** テキスト描画関数 ********************/
 void drawText(int16_t x, int16_t y, const char* text, const GFXfont* font, uint16_t color) {
@@ -169,19 +163,25 @@ void welcome(){
 int menu(double smoothed_celsius){
   SSR_ON = false;
   canvas.fillScreen(ILI9341_BLACK);   //背景色リセット
-  drawText(92, 30, "Heating", &FreeSans9pt7b, ILI9341_WHITE);
-  drawText(232, 30, "Waiting", &FreeSans9pt7b, ILI9341_WHITE);
+  drawText(20, 30, "SD Status:", &FreeSans9pt7b, ILI9341_WHITE);
   drawText(60, 210, "Temp:", &FreeSans12pt7b, ILI9341_WHITE);
   drawText(200, 210, "[degC]", &FreeSans12pt7b, ILI9341_WHITE);
 
+  if (find_SD) {
+    drawText(110, 30, "Detected", &FreeSans9pt7b, ILI9341_GREEN);
+  }
+  else {
+    drawText(110, 30, "Not Detected", &FreeSans9pt7b, ILI9341_RED);
+  }
+
   canvas.setTextColor(ILI9341_WHITE); 
-  canvas.setFont(&FreeSans12pt7b);  // フォント指定
+  canvas.setFont(&FreeSans9pt7b);  // フォント指定
   canvas.setCursor(140, 210);          // 表示座標指定
   canvas.print(smoothed_celsius);
 
   // 平行線(x始点，y始点，長さ)
   canvas.drawFastHLine(0, 46, 320, ILI9341_WHITE);
-
+/*
   // Heating_Waitingランプ描画(x, y, 半径, 色)
   canvas.fillCircle(70, 22, 20, ILI9341_DARKGREY); // 外枠
   canvas.fillCircle(70, 22, 18, ILI9341_WHITE);    // 境界線
@@ -189,7 +189,7 @@ int menu(double smoothed_celsius){
   canvas.fillCircle(210, 22, 18, ILI9341_WHITE);    // 境界線
   canvas.fillCircle(70, 22, 17, ILI9341_DARKGREY); // Heatingランプ部消灯
   canvas.fillCircle(210, 22, 17, ILI9341_BLUE); // Waitingランプ部点灯
-
+*/
   // ボタン描画（左上x, 左上y, wide, high, ラベル, フォント, ボタン色, ラベル色）
   drawButton(20, 60, 280, 60, "Start Recording", &FreeSansBold12pt7b, ILI9341_ORANGE, ILI9341_WHITE); // 記録開始ボタン
   drawButton(20, 130, 280, 60, "Remount SD", &FreeSansBold12pt7b, ILI9341_GREEN, ILI9341_WHITE); // SDカード再マウントボタン
@@ -201,14 +201,15 @@ int menu(double smoothed_celsius){
 
   if (touch_status == TOUCH_START) {  // タッチされていれば
     // ボタンタッチエリア検出
-    if (x >= 20 && x <= 280 && y >= 60 && y <= 120){
+    if (touch_x >= 20 && touch_x <= 280 && touch_y >= 60 && touch_y <= 120){
       tone(sound,3000,100);
       page = START_CONFIRM;
       l = 0;
-    }    // 範囲内ならmanualに
-    if (x >= 20 && x <= 280 && y >= 130 && y <= 190){
+    }
+    if (touch_x >= 20 && touch_x <= 280 && touch_y >= 130 && touch_y <= 190){
       tone(sound,3000,100);
-    } // 範囲内ならautoに
+      find_SD = reinitializeSD();
+    }
 
   }
 
@@ -254,13 +255,13 @@ int start_confirm(double smoothed_celsius){
 
   if (touch_status == TOUCH_START) {  // タッチされていれば
     // ボタンタッチエリア検出
-    if (x >= 25 && x <= 165 && y >= 120 && y <= 205){
+    if (touch_x >= 25 && touch_x <= 165 && touch_y >= 120 && touch_y <= 205){
       l = 0;
       time_start_to_now = 0.0;
       tone(sound,3000,100);
       page = RECORDING;
     }
-    if (x >= 170 && x <= 310 && y >= 120 && y <= 205){
+    if (touch_x >= 170 && touch_x <= 310 && touch_y >= 120 && touch_y <= 205){
       page = MENU;
       tone(sound,3000,100);
     }
@@ -319,13 +320,15 @@ int recording(double smoothed_celsius){
     drawText(130, 130, "Heat up to 235", &FreeSans12pt7b, ILI9341_RED);
   }
   if(210000 < time_start_to_now){
+    /*
     check_reflow_start = false;
     canvas.fillRect(120, 30, 80, 30, ILI9341_BLACK);    //温度の表示を黒塗りで隠したい
     if(find_SD == true){
       writeSdData(SD_time, plot);
     }
+    */
     ohuro();
-    delay(8000);
+    //delay(8000);
     //page = 12;
   }
   
@@ -361,11 +364,11 @@ int recording(double smoothed_celsius){
 
   if (touch_status == TOUCH_START) {  // タッチされていれば
     // ボタンタッチエリア検出
-    if (x >= 25 && x <= 165 && y >= 185 && y <= 235){
+    if (touch_x >= 25 && touch_x <= 165 && touch_y >= 185 && touch_y <= 235){
       page = GRAPH;   // 範囲内ならpage11 グラフ
       tone(sound,3000,100);
     }
-    if (x >= 170 && x <= 310 && y >= 185 && y <= 235){
+    if (touch_x >= 170 && touch_x <= 310 && touch_y >= 185 && touch_y <= 235){
       page = STOP_CONFIRM; // 範囲内ならpage8 Emargency
       tone(sound,3000,100);
     }
@@ -489,11 +492,11 @@ int page_12(){
 
   if (touch_status == TOUCH_START) {  // タッチされていれば
       // ボタンタッチエリア検出
-      if (x >= 25 && x <= 165 && y >= 185 && y <= 235){
+      if (touch_x >= 25 && touch_x <= 165 && touch_y >= 185 && touch_y <= 235){
         page = MENU;   // 範囲内ならpage2
         tone(sound,3000,100);
       }
-      if (x >= 170 && x <= 310 && y >= 185 && y <= 235){
+      if (touch_x >= 170 && touch_x <= 310 && touch_y >= 185 && touch_y <= 235){
         tone(sound,3000,100);
         Refresh_SD = 0;
         reinitializeSD();
@@ -526,11 +529,11 @@ int page_13(){
 
   if (touch_status == TOUCH_START) {  // タッチされていれば
     // ボタンタッチエリア検出
-    if (x >= 25 && x <= 165 && y >= 102 && y <= 187){
+    if (touch_x >= 25 && touch_x <= 165 && touch_y >= 102 && touch_y <= 187){
       page = MENU;   // 範囲内なら保存せずpage2へ
       tone(sound,3000,100);
     }
-    if (x >= 170 && x <= 310 && y >= 102 && y <= 187) {
+    if (touch_x >= 170 && touch_x <= 310 && touch_y >= 102 && touch_y <= 187) {
       if(find_SD == true){
         writeSdData(SD_time, plot);
         //page = 12; // 範囲内なら保存してpage12へ
@@ -629,7 +632,8 @@ void writeSdData(double SD_time[], double plot[]) {
 
 /********************* JPEG表示 *************************/
 void jpegDraw(const char* filename) {
-  JpegDec.decodeSdFile(filename); // JPEGファイルをSDカードからデコード実行
+  myFile = SD.open(filename, FILE_READ);
+  JpegDec.decodeSdFile(myFile); // JPEGファイルをSDカードからデコード実行
   
   // シリアル出力、デコード画像情報(MCU [Minimum Coded Unit]：JPEG画像データの最小処理単位
   Serial.printf("Size : %d x %d\nMCU : %d x %d\n", JpegDec.width, JpegDec.height, JpegDec.MCUWidth, JpegDec.MCUHeight);
@@ -644,13 +648,13 @@ void jpegDraw(const char* filename) {
         int x = JpegDec.MCUx * JpegDec.MCUWidth + w;  // x座標
         int y = JpegDec.MCUy * JpegDec.MCUHeight + h; // y座標
         if (x < JpegDec.width && y < JpegDec.height) {  // ピクセルが画像範囲内なら
-            canvas.drawRGBBitmap(x, y, pImg, 1, 1); // 液晶画面にピクセルを描画
+          canvas.drawRGBBitmap(x, y, pImg, 1, 1); // 液晶画面にピクセルを描画
         }
         pImg += JpegDec.comps;  // ポインタを次のピクセルデータへ進める
       }
     }
   }
-
+  myFile.close();
 }
 
 /******************* SD再認識のため ********************/
@@ -659,7 +663,24 @@ bool reinitializeSD() {
   delay(100);
   SPI.begin();             // 再開
   delay(100);
-  return SD.begin(SD_CS);  // SD再初期化
+  // 1. SD.begin()が失敗したら、まずカードはない
+  if (!SD.begin(SD_CS)) {
+    return false;
+  }
+
+  // 2. ダミーファイルを開いてみる
+  File testFile = SD.open("/_test.tmp", FILE_WRITE);
+  
+  if (!testFile) {
+    // ファイルが正常に開けない = カードが物理的にないか、故障している
+    return false;
+  }
+  
+  // 3. テストが成功したら、後始末をしてtrueを返す
+  testFile.close();
+  SD.remove("/_test.tmp"); // 作成したダミーファイルを削除
+  
+  return true;
 }
 
 
@@ -820,10 +841,6 @@ void loop(){
   Pin_thermistor_num = Pin_thermistor; //温度を読みたいサーミスタのピン番号を代入，サーミスターを何個か並列使用するときのためにPin_thermistor_numに代入するようにした
   celsius = get_celsius(Pin_thermistor_num);
   smoothed_celsius = get_smoothed_celsius(celsius, smoothed_celsius);
-  
-
-
-
 
   //PWM_OUT_V = get_PWM_OUT_V(smoothed_celsius);
 
@@ -898,20 +915,19 @@ void setup1(){
 
   //グラフィック設定
   tft.begin();
-  tft.setRotation(3);                         //画面回転（0~3）
+  tft.setRotation(1);                         //画面回転（0~3）
   canvas.fillScreen(ILI9341_BLACK);   //背景色リセット
   canvas1.fillScreen(ILI9341_BLACK);
   tft.setTextSize(1);                      //デフォテキストサイズ
 
   //タッチパネル設定
   ts.begin();                   // タッチパネル初期化
-  ts.setRotation(1); // タッチパネルの回転(画面回転が3ならここは1)
+  ts.setRotation(3); // タッチパネルの回転(画面回転が3ならここは1)
 
   // SDカードの初期化
-  if (!SD.begin(SD_CS)) {
+  if (!(find_SD = SD.begin(SD_CS))) {
     Serial.println("SDカードの初期化に失敗しました");
     drawText(50, 50, "SD card not found!", &FreeSans12pt7b, ILI9341_RED);
-    return;
   } else {
     Serial.println("SDカードが初期化されました");
   }
@@ -925,8 +941,8 @@ void loop1(){
       {
         TS_Point tPoint = ts.getPoint();  // タッチ座標を取得
         touch_status = TOUCH_START;
-        x = (tPoint.x-400) * TFT_WIDTH / (4095-550);  // タッチx座標をTFT画面の座標に換算
-        y = (tPoint.y-230) * TFT_HEIGHT / (4095-420); // タッチy座標をTFT画面の座標に換算
+        touch_x = (tPoint.x-400) * TFT_WIDTH / (4095-550);  // タッチx座標をTFT画面の座標に換算
+        touch_y = (tPoint.y-230) * TFT_HEIGHT / (4095-420); // タッチy座標をTFT画面の座標に換算
       }
         break;
       case TOUCH_START:
