@@ -38,7 +38,7 @@
 
 const int Pin_thermistor = 26; // サーミスタ用
 
-// =======================================
+#include "thermistor.h"
 
 Adafruit_ILI9341 tft = Adafruit_ILI9341(&SPI, TFT_DC, TFT_CS, TFT_RST);   //グラフィックのインスタンス
 XPT2046_Touchscreen ts(TOUCH_CS);   //タッチパネルのインスタンス
@@ -110,6 +110,17 @@ void drawText(int16_t x, int16_t y, const char* text, const GFXfont* font, uint1
   canvas.println(text);       // 表示内容
 }
 
+void drawCenteredText(int16_t _y, const char* text, const GFXfont* font, uint16_t color) {
+  // テキストの幅と高さを取得
+  int16_t textX, textY; // テキスト位置取得用
+  uint16_t textWidth, textHeight; // テキストサイズ取得用
+  canvas.setFont(font);  // フォント指定
+  canvas.getTextBounds(text, 0, 0, &textX, &textY, &textWidth, &textHeight);
+  canvas.setTextColor(color); // 文字色
+  canvas.setCursor((TFT_WIDTH/2 - textWidth/2), _y);     // 表示座標
+  canvas.println(text);       // 表示内容
+}
+
 /***************** auto用　ランプ点灯状態更新関数 ***********************/
 void auto_updateLamp(){
   if(SSR_ON == true){
@@ -143,6 +154,11 @@ void drawButton(int x, int y, int w, int h, const char* label, const GFXfont* fo
   canvas.print(label);                    // テキストを描画
 }
 
+/******************** ボタンタッチ判定用関数 ********************/
+bool BUTTON_TOUCH(int _x, int _y, int _w, int _h) {
+  return (_x <= touch_x && touch_x <= _x + _w && _y <= touch_y && touch_y <= _y + _h);
+}
+
 /******************** 進行状況の三角描画関数 ********************/
 void triangle(int triangle_x){
   canvas.drawFastHLine(triangle_x, 156, 9, ILI9341_WHITE);
@@ -154,7 +170,7 @@ void triangle(int triangle_x){
 
 
 
-/******************** 1ページ目 TORICA ********************/
+/******************** TORICA ********************/
 void welcome(){
   jpegDraw(JPEG_FILENAME);
   tft.drawRGBBitmap(0, 0, canvas.getBuffer(), TFT_WIDTH, TFT_HEIGHT);
@@ -163,42 +179,42 @@ void welcome(){
 }
 
 
-/******************** 2ページ目 manual or auto ********************/
-int menu(double smoothed_celsius){
+/******************** メニュー ********************/
+int menu(){
   canvas.fillScreen(ILI9341_BLACK);   //背景色リセット
-  drawText(20, 30, "SD Status :", &FreeSans9pt7b, ILI9341_WHITE);
+  drawText(40, 30, "SD Status :", &FreeSans9pt7b, ILI9341_WHITE);
   if (find_SD) {
-    drawText(120, 30, "Detected", &FreeSans9pt7b, ILI9341_GREEN);
+    drawText(140, 30, "Available", &FreeSans9pt7b, ILI9341_GREEN);
   }
   else {
-    drawText(120, 30, "Not Detected", &FreeSans9pt7b, ILI9341_RED);
+    drawText(140, 30, "Not Available", &FreeSans9pt7b, ILI9341_RED);
   }
   
-  drawText(22, 60, "Temp [ C] :", &FreeSans9pt7b, ILI9341_WHITE);
-  canvas.drawCircle(80, 50, 2, ILI9341_WHITE);
+  drawText(42, 60, "Temp [ C] :", &FreeSans9pt7b, ILI9341_WHITE);
+  canvas.drawCircle(100, 50, 2, ILI9341_WHITE);
   canvas.setTextColor(ILI9341_WHITE); 
   canvas.setFont(&FreeSans9pt7b);  // フォント指定
-  canvas.setCursor(120, 60);          // 表示座標指定
+  canvas.setCursor(140, 60);          // 表示座標指定
   canvas.print(smoothed_celsius);
 
   // 平行線(x始点，y始点，長さ)
   canvas.drawFastHLine(0, 80, 320, ILI9341_WHITE);
 
   // ボタン描画（左上x, 左上y, wide, high, ラベル, フォント, ボタン色, ラベル色）
-  drawButton(20, 90, 280, 60, "Start Recording", &FreeSansBold12pt7b, ILI9341_ORANGE, ILI9341_WHITE); // 記録開始ボタン
-  drawButton(20, 160, 280, 60, "Remount SD", &FreeSansBold12pt7b, ILI9341_GREEN, ILI9341_WHITE); // SDカード再マウントボタン
+  drawButton(20, 95, 280, 60, "Start Recording", &FreeSansBold12pt7b, ILI9341_WHITE, ILI9341_BLUE); // 記録開始ボタン
+  drawButton(20, 165, 280, 60, "Remount SD", &FreeSansBold12pt7b, ILI9341_WHITE, ILI9341_BLUE); // SDカード再マウントボタン
 
   //スプライトをディスプレイ表示
   tft.drawRGBBitmap(0, 0, canvas.getBuffer(), TFT_WIDTH, TFT_HEIGHT);
 
   if (touch_status == TOUCH_START) {  // タッチされていれば
     // ボタンタッチエリア検出
-    if (touch_x >= 20 && touch_x <= 280 && touch_y >= 60 && touch_y <= 120){
+    if (BUTTON_TOUCH(20, 95, 280, 60)){
       tone(sound,3000,100);
       page = START_CONFIRM;
       l = 0;
     }
-    if (touch_x >= 20 && touch_x <= 280 && touch_y >= 130 && touch_y <= 190){
+    if (BUTTON_TOUCH(20, 165, 280, 60)){
       tone(sound,3000,100);
       find_SD = reinitializeSD();
     }
@@ -209,37 +225,32 @@ int menu(double smoothed_celsius){
 }
 
 
-/******************** 6ページ目 autoリフロースタート最終確認 ********************/
-int start_confirm(double smoothed_celsius){
-  SSR_ON = false;
+/******************** スタート確認 ********************/
+int start_confirm(){
   canvas.fillScreen(ILI9341_BLACK);   //背景色リセット
-  drawText(92, 30, "Heating", &FreeSans9pt7b, ILI9341_WHITE);
-  drawText(232, 30, "Waiting", &FreeSans9pt7b, ILI9341_WHITE);
-  drawText(60, 230, "Temp:", &FreeSans12pt7b, ILI9341_WHITE);
-  drawText(200, 230, "[degC]", &FreeSans12pt7b, ILI9341_WHITE);
-  drawText(20, 100, "Start Auto-Reflow?", &FreeSans18pt7b, ILI9341_WHITE);
-
+  drawText(40, 30, "SD Status :", &FreeSans9pt7b, ILI9341_WHITE);
+  if (find_SD) {
+    drawText(140, 30, "Available", &FreeSans9pt7b, ILI9341_GREEN);
+  }
+  else {
+    drawText(140, 30, "Not Available", &FreeSans9pt7b, ILI9341_RED);
+  }
+  
+  drawText(42, 60, "Temp [ C] :", &FreeSans9pt7b, ILI9341_WHITE);
+  canvas.drawCircle(100, 50, 2, ILI9341_WHITE);
   canvas.setTextColor(ILI9341_WHITE); 
-  canvas.setFont(&FreeSans12pt7b);  // フォント指定
-  canvas.setCursor(140, 230);          // 表示座標指定
+  canvas.setFont(&FreeSans9pt7b);  // フォント指定
+  canvas.setCursor(140, 60);          // 表示座標指定
   canvas.print(smoothed_celsius);
 
-  
   // 平行線(x始点，y始点，長さ)
-  canvas.drawFastHLine(0, 46, 320, ILI9341_WHITE);
+  canvas.drawFastHLine(0, 80, 320, ILI9341_WHITE);
 
-  // Heating_Waitingランプ描画(x, y, 半径, 色)
-  canvas.fillCircle(70, 22, 20, ILI9341_DARKGREY); // 外枠
-  canvas.fillCircle(70, 22, 18, ILI9341_WHITE);    // 境界線
-  canvas.fillCircle(210, 22, 20, ILI9341_DARKGREY); // 外枠
-  canvas.fillCircle(210, 22, 18, ILI9341_WHITE);    // 境界線
-  canvas.fillCircle(70, 22, 17, ILI9341_DARKGREY); // Heatingランプ部消灯
-  canvas.fillCircle(210, 22, 17, ILI9341_BLUE); // Waitingランプ部点灯
-
+  drawCenteredText(120, "Start Recording?", &FreeSans18pt7b, ILI9341_WHITE);
 
   // ボタン描画（左上x, 左上y, wide, high, ラベル, フォント, ボタン色, ラベル色）
-  drawButton(25, 120, 140, 85, "Start", &FreeSansBold18pt7b, ILI9341_ORANGE, ILI9341_WHITE); // ONボタン
-  drawButton(170, 120, 140, 85, "Cancel", &FreeSansBold18pt7b, ILI9341_GREEN, ILI9341_WHITE); // OFFボタン
+  drawButton(15, 140, 140, 85, "Cancel", &FreeSansBold18pt7b, ILI9341_WHITE, ILI9341_RED); // OFFボタン
+  drawButton(165, 140, 140, 85, "Start", &FreeSansBold18pt7b, ILI9341_WHITE, ILI9341_BLUE); // ONボタン
 
   //スプライトをディスプレイ表示
   tft.drawRGBBitmap(0, 0, canvas.getBuffer(), TFT_WIDTH, TFT_HEIGHT);
@@ -247,14 +258,14 @@ int start_confirm(double smoothed_celsius){
 
   if (touch_status == TOUCH_START) {  // タッチされていれば
     // ボタンタッチエリア検出
-    if (touch_x >= 25 && touch_x <= 165 && touch_y >= 120 && touch_y <= 205){
+    if (BUTTON_TOUCH(15, 130, 140, 85)){
+      page = MENU;
+      tone(sound,3000,100);
+    }
+    if (BUTTON_TOUCH(165, 130, 140, 85)){
+      page = RECORDING;
       l = 0;
       time_start_to_now = 0.0;
-      tone(sound,3000,100);
-      page = RECORDING;
-    }
-    if (touch_x >= 170 && touch_x <= 310 && touch_y >= 120 && touch_y <= 205){
-      page = MENU;
       tone(sound,3000,100);
     }
 
@@ -263,20 +274,34 @@ int start_confirm(double smoothed_celsius){
   return page;
 }
 
-/******************** 7ページ目 autoリフロー中 ********************/
+/******************** 記録中 ********************/
 
-int recording(double smoothed_celsius){
+int recording(){
   canvas.fillScreen(ILI9341_BLACK);   //背景色リセット
-  drawText(92, 30, "Heating", &FreeSans9pt7b, ILI9341_WHITE);
-  drawText(232, 30, "Waiting", &FreeSans9pt7b, ILI9341_WHITE);
-  drawText(8, 85, "Temp:", &FreeSans18pt7b, ILI9341_WHITE);
-  drawText(245, 88, "[degC]", &FreeSans12pt7b, ILI9341_WHITE);
-  drawText(8, 130, "Phase:", &FreeSans18pt7b, ILI9341_WHITE);
 
+  canvas.fillRect(0, 0, TFT_WIDTH, 3, ILI9341_RED);
+  canvas.fillRect(0, 0, 3, TFT_HEIGHT, ILI9341_RED);
+  canvas.fillRect(0, (TFT_HEIGHT - 3), TFT_WIDTH, 3, ILI9341_RED);
+  canvas.fillRect((TFT_WIDTH - 3), 0, 3, TFT_HEIGHT, ILI9341_RED);
+  
+  canvas.fillCircle(80, 22, 10, ILI9341_RED); // 記録中の赤丸
+  drawCenteredText(30, "Recording...", &FreeSans12pt7b, ILI9341_RED);
+
+  drawText(40, 60, "SD Status :", &FreeSans9pt7b, ILI9341_WHITE);
+  if (find_SD) {
+    drawText(140, 60, "Available", &FreeSans9pt7b, ILI9341_GREEN);
+  }
+  else {
+    drawText(140, 60, "Not Available", &FreeSans9pt7b, ILI9341_RED);
+  }
+  
+  drawText(42, 90, "Temp [ C] :", &FreeSans9pt7b, ILI9341_WHITE);
+  canvas.drawCircle(100, 80, 2, ILI9341_WHITE);
   canvas.setTextColor(ILI9341_WHITE); 
-  canvas.setFont(&FreeSans18pt7b);  // フォント指定
-  canvas.setCursor(135, 85);          // 表示座標指定
+  canvas.setFont(&FreeSans9pt7b);  // フォント指定
+  canvas.setCursor(140, 90);          // 表示座標指定
   canvas.print(smoothed_celsius);
+
 
   time_now = millis();
   
@@ -300,51 +325,8 @@ int recording(double smoothed_celsius){
   canvas.print("s");
   
 
-  
-  if(0 <= time_start_to_now && time_start_to_now <= 30000){
-    drawText(130, 130, "Heat up to 100", &FreeSans12pt7b, ILI9341_YELLOW);
-  }
-  
-  if(30000 < time_start_to_now && time_start_to_now <= 120000){
-    drawText(130, 130, "Heat up to 150", &FreeSans12pt7b, ILI9341_ORANGE); 
-  }
-  if(120000 < time_start_to_now && time_start_to_now <= 210000){
-    drawText(130, 130, "Heat up to 235", &FreeSans12pt7b, ILI9341_RED);
-  }
-  if(210000 < time_start_to_now){
-    /*
-    check_reflow_start = false;
-    canvas.fillRect(120, 30, 80, 30, ILI9341_BLACK);    //温度の表示を黒塗りで隠したい
-    if(find_SD == true){
-      writeSdData(SD_time, plot);
-    }
-    */
-    ohuro();
-    //delay(8000);
-    //page = 12;
-  }
-  
-  triangle_x = ((time_start_to_now / 1000) *297 / 210) + 8;
-  triangle(triangle_x);
 
 
-  // 平行線(x始点，y始点，長さ)
-  canvas.drawFastHLine(0, 46, 320, ILI9341_WHITE);
-  canvas.drawFastHLine(0, 100, 320, ILI9341_WHITE);
-  canvas.drawFastHLine(0, 180, 320, ILI9341_WHITE);
-
-  // スライドボリューム描画
-  canvas.fillRect(10, 162, 300, 11, ILI9341_WHITE);    // 枠
-  canvas.fillRect(12, 164, 42, 7, ILI9341_YELLOW);
-  canvas.fillRect(54, 164, 127, 7, ILI9341_ORANGE);
-  canvas.fillRect(181, 164, 127, 7, ILI9341_RED);
-
-  // Heating-Waitingランプ描画(x, y, 半径, 色)
-  canvas.fillCircle(70, 22, 20, ILI9341_DARKGREY); // 外枠
-  canvas.fillCircle(70, 22, 18, ILI9341_WHITE);    // 境界線
-  canvas.fillCircle(210, 22, 20, ILI9341_DARKGREY); // 外枠
-  canvas.fillCircle(210, 22, 18, ILI9341_WHITE);    // 境界線
-  auto_updateLamp(); // ボタン点灯状態更新関数呼び出し
 
   // ボタン描画（左上x, 左上y, wide, high, ラベル, フォント, ボタン色, ラベル色）
   drawButton(25, 185, 140, 50, "Graph", &FreeSans18pt7b, ILI9341_ORANGE, ILI9341_WHITE); // OFFボタン
@@ -356,13 +338,13 @@ int recording(double smoothed_celsius){
 
   if (touch_status == TOUCH_START) {  // タッチされていれば
     // ボタンタッチエリア検出
-    if (touch_x >= 25 && touch_x <= 165 && touch_y >= 185 && touch_y <= 235){
+    if (BUTTON_TOUCH(25, 185, 140, 50)){
       page = GRAPH;   // 範囲内ならpage11 グラフ
       tone(sound,3000,100);
     }
-    if (touch_x >= 170 && touch_x <= 310 && touch_y >= 185 && touch_y <= 235){
+    if (BUTTON_TOUCH(170, 185, 140, 50)){
       page = STOP_CONFIRM; // 範囲内ならpage8 Emargency
-      tone(sound,3000,100);
+      ohuro(sound);
     }
 
   }
@@ -372,7 +354,7 @@ int recording(double smoothed_celsius){
   return page;
 }
 
-/******************** 11ページ目 グラフ ********************/
+/******************** グラフ ********************/
 int graph(){
   canvas.fillScreen(ILI9341_BLACK);   //背景色リセット
 
@@ -556,48 +538,48 @@ int page_13(){
 
 
 /******************** 焼き終了音 ********************************/
-void ohuro(){
-  tone(0, 806.964, 250); //ソ
+void ohuro(int SPEAKER){
+  tone(SPEAKER, 806.964, 250); //ソ
   delay(250);
-  tone(0, 718.923, 250);  //ファ
+  tone(SPEAKER, 718.923, 250);  //ファ
   delay(250);
-  tone(0, 678.573, 500);  //ミ
+  tone(SPEAKER, 678.573, 500);  //ミ
   delay(500);
 
-  tone(0, 806.964, 250); //ソ
+  tone(SPEAKER, 806.964, 250); //ソ
   delay(250);
-  tone(0, 1077.164, 250); //ド
+  tone(SPEAKER, 1077.164, 250); //ド
   delay(250);
-  tone(0, 1016.710, 500); //シ
+  tone(SPEAKER, 1016.710, 500); //シ
   delay(500);
   
-  tone(0, 806.964, 250);  //ソ
+  tone(SPEAKER, 806.964, 250);  //ソ
   delay(250);
-  tone(0, 1209.079, 250); //レ
+  tone(SPEAKER, 1209.079, 250); //レ
   delay(250);
-  tone(0, 1077.164, 500); //ド
+  tone(SPEAKER, 1077.164, 500); //ド
   delay(500);
-  tone(0, 1357.146, 500); //ミ
+  tone(SPEAKER, 1357.146, 500); //ミ
   delay(500);
-  delay(500);
-
-  tone(0, 1077.164, 250); //ド
-  delay(250);
-  tone(0, 1016.710, 250); //シ
-  delay(250);
-  tone(0, 905.786, 500); //ラ
   delay(500);
 
-  tone(0, 1437.846, 250); //ファ
+  tone(SPEAKER, 1077.164, 250); //ド
   delay(250);
-  tone(0, 1209.079, 250); //レ
+  tone(SPEAKER, 1016.710, 250); //シ
   delay(250);
-  tone(0, 1077.167, 500); //ド
-  delay(500);
-  tone(0, 1016.710, 500);  //シ
+  tone(SPEAKER, 905.786, 500); //ラ
   delay(500);
 
-  tone(0, 1077.164, 1000); //ド
+  tone(SPEAKER, 1437.846, 250); //ファ
+  delay(250);
+  tone(SPEAKER, 1209.079, 250); //レ
+  delay(250);
+  tone(SPEAKER, 1077.167, 500); //ド
+  delay(500);
+  tone(SPEAKER, 1016.710, 500);  //シ
+  delay(500);
+
+  tone(SPEAKER, 1077.164, 1000); //ド
   delay(1000);
 
 }
@@ -655,136 +637,10 @@ bool reinitializeSD() {
   delay(100);
   SPI.begin();             // 再開
   delay(100);
-  // 1. SD.begin()が失敗したら、まずカードはない
-  if (!SD.begin(SD_CS)) {
-    return false;
-  }
-
-  // 2. ダミーファイルを開いてみる
-  File testFile = SD.open("/_test.tmp", FILE_WRITE);
-  
-  if (!testFile) {
-    // ファイルが正常に開けない = カードが物理的にないか、故障している
-    return false;
-  }
-  
-  // 3. テストが成功したら、後始末をしてtrueを返す
-  testFile.close();
-  SD.remove("/_test.tmp"); // 作成したダミーファイルを削除
-  
-  return true;
+  return SD.begin(SD_CS);
 }
 
 
-
-/////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-/////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-/////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-
-float celsius = 1;
-float smoothed_celsius = 23.0; //平滑化後の温度 ←直温度取得1回目の値で初期化した方がいいか？
-int duty = 0; //デューティー比 
-float PWM_OUT_V; //PWM制御による平均出力電圧
-int i;
-int under_temp_V , over_temp_V = 0; //Voltageのtemp_V配列内近似値　温度低い方 = under_temp_V, 温度高い方 = over_temp_V，最近似値 = neaest_temp_V
-int Voltage;
-int num_temp_V = 0;
-int Pin_thermistor_num = 0;
-
-int left = 0;
-int right = 1495; // 要素数-1
-int mid;
-
-
-
-/*
-//↓PID用
-const float P =2; //Pゲイン
-const float I =9; //Iゲイン
-const float D =0; //Dゲイン
-float target_temp = 7.0; //目標温度
-float diff_temp_before = 0.0; //微分初期値 ←計測1回目の目標との差[℃]に変更する
-float diff_temp = 0.0; //目標温度との最新の差
-float T = 0.01; //PID制御周期
-float I_diff_temp = 0.0; //I要素（積分）
-float D_diff_temp = 0.0; //D要素（微分）
-float u = 0.0; //PIDからの出力[%]
-//↑
-*/
-
-const float VCC = 3.3;         // Picoの電源電圧
-const float R_FIXED = 1000.0; // 回路に接続した1kΩの固定抵抗
-//サーミスタの抵抗値が1kΩになる約84.5℃で最も精度が高くなる
-
-// ----- サーミスタの特性 -----
-const float R0_THERMISTOR = 10000.0; // 仕様温度1における抵抗値 (10kΩ)
-const float T0_THERMISTOR_C = 25.0;  // 仕様温度1 (25℃)
-const float B_CONSTANT = 4126.0;     // B定数
-
-// 摂氏をケルビンに変換するための定数
-const float KELVIN_OFFSET = 273.15;
-
-float get_celsius(int Pin_thermistor_num){
-  int adcRaw = analogRead(Pin_thermistor); //0~3.3Vを0~4095に分割した値
-
-  // 2. ADCの値を電圧に変換する
-  //    (float)adcRaw とすることで浮動小数点数として計算
-  float vOut = (float)adcRaw * VCC / 4095.0;
-
-  // 3. 電圧値からサーミスタの現在の抵抗値を計算する
-  //    分圧回路の計算式 Vout = Vcc * R2 / (R1 + R2) を R2 について解く
-  //    R1 = R_FIXED, R2 = rThermistor
-  float rThermistor = R_FIXED * vOut / (VCC - vOut);
-
-  // 4. B定数の計算式を使い、抵抗値から温度（ケルビン）を算出
-  //    1/T = 1/T0 + (1/B) * ln(R/R0)
-  float t0Kelvin = T0_THERMISTOR_C + KELVIN_OFFSET;
-  float tempKelvin = 1.0 / ( (1.0 / t0Kelvin) + (1.0 / B_CONSTANT) * log(rThermistor / R0_THERMISTOR) );
-  
-  // 5. 温度をケルビンから摂氏（℃）に変換
-  return tempKelvin - KELVIN_OFFSET;
-}
-
-
-//指数移動平均
-float get_smoothed_celsius(float celsius, float smoothed_celsius){
-  const float alpha = 0.3; // スムージング係数（0 < α < 1）
-  Serial.print("前平滑温度:");
-  Serial.println(smoothed_celsius);
-  //Serial.print(", ");
-  return (alpha * celsius + (1 - alpha) * smoothed_celsius);
-}
-
-
-
-/********************* ただの制御 ******************/
-//void control_SSR(){
-
-
-
-
-
-//}
-
-
-
-//PWM制御
-/*
-float get_PWM_OUT_V(float smoothed_celsius){
-  analogWriteFreq(25000);
-  analogWriteRange(256);
-  duty = map(smoothed_celsius, -15, 50, 0, 255);
-  duty = constrain(duty, 0, 255);
-  analogWrite(Pin_Peltier, duty); //dutyは0~255の値
-  return (3.3*((float)duty / 255));
-}
-*/
-
-
-
-/////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-/////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-/////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
 
 
@@ -799,9 +655,7 @@ void setup(){
 
 
 void loop(){
-  Pin_thermistor_num = Pin_thermistor; //温度を読みたいサーミスタのピン番号を代入，サーミスターを何個か並列使用するときのためにPin_thermistor_numに代入するようにした
-  celsius = get_celsius(Pin_thermistor_num);
-  smoothed_celsius = get_smoothed_celsius(celsius, smoothed_celsius);
+  update_smoothed_celsius(Pin_thermistor);
 
   //PWM_OUT_V = get_PWM_OUT_V(smoothed_celsius);
 
@@ -928,13 +782,13 @@ void loop1(){
       break;
     case MENU:
       digitalWrite(LED_BUILTIN, LOW);
-      menu(smoothed_celsius);
+      menu();
       break;
     case START_CONFIRM:
-      start_confirm(smoothed_celsius);
+      start_confirm();
       break;
     case RECORDING:
-      recording(smoothed_celsius);
+      recording();
       break;
     case GRAPH:
       graph();
