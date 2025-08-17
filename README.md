@@ -1,1 +1,2 @@
-# 26th_Ketayaki_Recorder
+# 26th_Software_Ketayaki_Recorder
+桁焼き記録装置のリポジトリです。
