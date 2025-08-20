@@ -236,6 +236,8 @@ int start_confirm(){
       l = 0;
       time_start_to_now = 0.0;
       tone(sound,3000,100);
+      delay(50);
+      tone(sound,3000,700);
     }
 
   }
