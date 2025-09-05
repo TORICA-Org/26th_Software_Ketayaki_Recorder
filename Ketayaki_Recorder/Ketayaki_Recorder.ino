@@ -54,13 +54,6 @@ double plot[900];
 double SD_time[900];
 int num_loop = 0; //core0のloopが回った回数を数える
 
-enum RECODE_STATUS {
-  STANDBY,
-  RECORDING,
-  PAUSE
-};
-RECORD_STATUS record_status = STANDBY;
-
 /****************** SDカード書き込み **************************/
 void writeSdData(double SD_time[], double plot[]) {
   myFile = SD.open(SD_FILENAME, FILE_WRITE); // SDカードのファイルを開く

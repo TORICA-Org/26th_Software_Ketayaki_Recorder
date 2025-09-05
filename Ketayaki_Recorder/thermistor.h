@@ -21,8 +21,8 @@ const float B_CONSTANT = 4126.0;     // B定数
 const float KELVIN_OFFSET = 273.15;
 
 float get_celsius(int Pin_thermistor_num){
-  //int adcRaw = analogRead(Pin_thermistor_num); //0~3.3Vを0~4095に分割した値
-  int adcRaw = 2048;
+  int adcRaw = analogRead(Pin_thermistor_num); //0~3.3Vを0~4095に分割した値
+  //int adcRaw = 2048;
 
   // 2. ADCの値を電圧に変換する
   //    (float)adcRaw とすることで浮動小数点数として計算
