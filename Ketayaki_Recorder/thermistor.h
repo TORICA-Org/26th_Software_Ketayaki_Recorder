@@ -31,7 +31,8 @@ float get_celsius(int Pin_thermistor_num){
   // 3. 電圧値からサーミスタの現在の抵抗値を計算する
   //    分圧回路の計算式 Vout = Vcc * R2 / (R1 + R2) を R2 について解く
   //    R1 = R_FIXED, R2 = rThermistor
-  float rThermistor = R_FIXED * vOut / (VCC - vOut);
+  // float rThermistor = R_FIXED * vOut / (VCC - vOut);
+  float rThermistor = R_FIXED * (VCC - vOut) / vOut; // ★この行を変更
 
   // 4. B定数の計算式を使い、抵抗値から温度（ケルビン）を算出
   //    1/T = 1/T0 + (1/B) * ln(R/R0)

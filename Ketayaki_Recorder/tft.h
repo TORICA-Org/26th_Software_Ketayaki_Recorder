@@ -51,7 +51,7 @@ enum PAGE_ENUM { // ページ用列挙型
   WELCOME,
   MENU,
   START_CONFIRM,
-  RECORDING,
+  RECORDING_PAGE,
   GRAPH,
   STOP_CONFIRM
 };
@@ -232,7 +232,7 @@ int start_confirm(){
       tone(sound,3000,100);
     }
     if (BUTTON_TOUCH(165, 130, 140, 85)){
-      page = RECORDING;
+      page = RECORDING_PAGE;
       l = 0;
       time_start_to_now = 0.0;
       tone(sound,3000,100);
@@ -413,7 +413,7 @@ int graph(){
   
   if (touch_status == TOUCH_START) {  // タッチされていれば
     tone(sound,3000,100);
-    page = RECORDING;
+    page = RECORDING_PAGE;
   }
   
   return page;

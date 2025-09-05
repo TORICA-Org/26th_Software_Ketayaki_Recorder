@@ -54,7 +54,7 @@ double plot[900];
 double SD_time[900];
 int num_loop = 0; //core0のloopが回った回数を数える
 
-enum RECODE_STATUS {
+enum RECORD_STATUS {
   STANDBY,
   RECORDING,
   PAUSE
@@ -232,7 +232,7 @@ void loop1(){
     case START_CONFIRM:
       start_confirm();
       break;
-    case RECORDING:
+    case RECORDING_PAGE:
       recording();
       break;
     case GRAPH:
