@@ -1,3 +1,5 @@
+#include <Arduino.h>
+
 /******************** 焼き終了音 ********************************/
 void ohuro(int SPEAKER){
   tone(SPEAKER, 806.964, 250); //ソ
