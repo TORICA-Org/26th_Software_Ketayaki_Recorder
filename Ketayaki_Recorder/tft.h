@@ -1,6 +1,6 @@
 #include <Arduino.h>
 #include "ohuro.h"
-extern bool reinitializeSD();
+extern bool initializeSD();
 
 #include <Adafruit_GFX.h> // ライブラリマネージャで"Adafruit GFX Library"と依存ライブラリをインストール(Install all)
 #include <Adafruit_ILI9341.h> // ライブラリマネージャで"Adafruit ILI9341"と依存ライブラリをインストール(Install all)
@@ -20,7 +20,7 @@ extern bool reinitializeSD();
 #include <Fonts/Tiny3x3a2pt7b.h>
 #define TFT_WIDTH 320    // Displayのx方向ビット数
 #define TFT_HEIGHT 240   // Displayのy方向ビット数
-#define JPEG_FILENAME "TORICA_LOGO.jpg"
+#define JPEG_FILENAME "/TORICA_LOGO.jpg"
 
 Adafruit_ILI9341 tft = Adafruit_ILI9341(&SPI, TFT_DC, TFT_CS, TFT_RST);   //グラフィックのインスタンス
 XPT2046_Touchscreen ts(TOUCH_CS);   //タッチパネルのインスタンス
@@ -39,6 +39,16 @@ TOUCH_STATUS touch_status = RELEASE;
 int16_t touch_x; // タッチx座標の保持
 int16_t touch_y; // タッチy座標の保持
 
+enum PAGE_ENUM { // ページ用列挙型
+  WELCOME,
+  MENU,
+  CONFIRM_START,
+  RECORDING,
+  GRAPH,
+  CONFIRM_STOP
+};
+PAGE_ENUM page = WELCOME;
+
 /******************** テキスト描画関数 ********************/
 void drawText(int16_t x, int16_t y, const char* text, const GFXfont* font, uint16_t color) {
   canvas.setFont(font);       // フォント
@@ -47,14 +57,25 @@ void drawText(int16_t x, int16_t y, const char* text, const GFXfont* font, uint1
   canvas.println(text);       // 表示内容
 }
 
-void drawCenteredText(int16_t _y, const char* text, const GFXfont* font, uint16_t color) {
+void drawTextCenterAlign(int16_t x, int16_t y, const char* text, const GFXfont* font, uint16_t color) {
   // テキストの幅と高さを取得
   int16_t textX, textY; // テキスト位置取得用
   uint16_t textWidth, textHeight; // テキストサイズ取得用
   canvas.setFont(font);  // フォント指定
   canvas.getTextBounds(text, 0, 0, &textX, &textY, &textWidth, &textHeight);
   canvas.setTextColor(color); // 文字色
-  canvas.setCursor((TFT_WIDTH/2 - textWidth/2), _y);     // 表示座標
+  canvas.setCursor((x - textWidth/2), (y + textHeight/2));     // 表示座標
+  canvas.println(text);       // 表示内容
+}
+
+void drawCenteredText(int16_t y, const char* text, const GFXfont* font, uint16_t color) {
+  // テキストの幅と高さを取得
+  int16_t textX, textY; // テキスト位置取得用
+  uint16_t textWidth, textHeight; // テキストサイズ取得用
+  canvas.setFont(font);  // フォント指定
+  canvas.getTextBounds(text, 0, 0, &textX, &textY, &textWidth, &textHeight);
+  canvas.setTextColor(color); // 文字色
+  canvas.setCursor((TFT_WIDTH/2 - textWidth/2), y);     // 表示座標
   canvas.println(text);       // 表示内容
 }
 
@@ -143,7 +164,7 @@ int menu(){
 
   // ボタン描画（左上x, 左上y, wide, high, ラベル, フォント, ボタン色, ラベル色）
   drawButton(20, 95, 280, 60, "Start Recording", &FreeSansBold12pt7b, ILI9341_WHITE, ILI9341_BLUE); // 記録開始ボタン
-  drawButton(20, 165, 280, 60, "Remount SD", &FreeSansBold12pt7b, ILI9341_WHITE, ILI9341_BLUE); // SDカード再マウントボタン
+  drawButton(20, 165, 280, 60, "Mount SD", &FreeSansBold12pt7b, ILI9341_WHITE, ILI9341_BLUE); // SDカードマウントボタン
 
   //スプライトをディスプレイ表示
   tft.drawRGBBitmap(0, 0, canvas.getBuffer(), TFT_WIDTH, TFT_HEIGHT);
@@ -152,11 +173,11 @@ int menu(){
     // ボタンタッチエリア検出
     if (BUTTON_TOUCH(20, 95, 280, 60)){
       tone(sound,3000,100);
-      page = START_CONFIRM;
+      page = CONFIRM_START;
     }
     if (BUTTON_TOUCH(20, 165, 280, 60)){
       tone(sound,3000,100);
-      find_SD = reinitializeSD();
+      initializeSD();
     }
 
   }
@@ -166,7 +187,7 @@ int menu(){
 
 
 /******************** スタート確認 ********************/
-int start_confirm(){
+int confirm_start(){
   canvas.fillScreen(ILI9341_BLACK);   //背景色リセット
   drawText(40, 30, "SD Status :", &FreeSans9pt7b, ILI9341_WHITE);
   if (find_SD) {
@@ -195,7 +216,6 @@ int start_confirm(){
   //スプライトをディスプレイ表示
   tft.drawRGBBitmap(0, 0, canvas.getBuffer(), TFT_WIDTH, TFT_HEIGHT);
 
-
   if (touch_status == TOUCH_START) {  // タッチされていれば
     // ボタンタッチエリア検出
     if (BUTTON_TOUCH(15, 130, 140, 85)){
@@ -206,14 +226,14 @@ int start_confirm(){
       page = RECORDING;
       time_start_ms = millis();
       time_duration_s = 0;
+      record_index = 0;
+      backup_index = 0;
       is_recording = true;
       tone(sound,3000,100);
-      delay(50);
+      delay(100);
       tone(sound,3000,700);
     }
-
   }
-  
   return page;
 }
 
@@ -245,12 +265,12 @@ int recording(){
   canvas.print(smoothed_celsius);
 
   char buff[20];
-  sprintf(buff, "%02uh%02um%02us", time_hour, time_minute, time_second);
+  sprintf(buff, "%02uh %02um %02us", time_hour, time_minute, time_second);
   drawCenteredText(153, buff, &FreeSans18pt7b, ILI9341_WHITE);
   
   // ボタン描画（左上x, 左上y, wide, high, ラベル, フォント, ボタン色, ラベル色）
-  drawButton(25, 185, 140, 50, "Graph", &FreeSans18pt7b, ILI9341_ORANGE, ILI9341_WHITE); // OFFボタン
-  drawButton(170, 185, 140, 50, "Emergency", &FreeSansBold9pt7b, ILI9341_RED, ILI9341_YELLOW); // ONボタン
+  drawButton(25, 185, 140, 50, "Graph", &FreeSans18pt7b, ILI9341_ORANGE, ILI9341_WHITE);
+  drawButton(170, 185, 140, 50, "Stop", &FreeSans18pt7b, ILI9341_RED, ILI9341_WHITE);
 
   //スプライトをディスプレイ表示
   tft.drawRGBBitmap(0, 0, canvas.getBuffer(), TFT_WIDTH, TFT_HEIGHT);
@@ -262,11 +282,10 @@ int recording(){
       tone(sound,3000,100);
     }
     if (BUTTON_TOUCH(170, 185, 140, 50)){
-      page = STOP_CONFIRM; // 範囲内ならpage8 Emargency
-      ohuro(sound);
+      page = CONFIRM_STOP;
+      tone(sound,3000,100);
     }
   }
-
   return page;
 }
 
@@ -274,13 +293,13 @@ int recording(){
 const int ox = 30;
 const int oy = 20;
 int vSpace = 15;
-int hSpace = 28;
+int hSpace = 30;
 int gx (int input) {return input + ox;}
 int gy (int input) {return TFT_HEIGHT - (input + oy);}
 
 void makeGraphArea() {
   //グラフ軸
-  canvas.drawFastHLine(gx(0), gy(0), hSpace*10, ILI9341_WHITE);     //横軸
+  canvas.drawFastHLine(gx(0), gy(0), 280, ILI9341_WHITE);     //横軸
   canvas.drawFastVLine(gx(0), gy(0), -(TFT_HEIGHT - oy - 5), ILI9341_WHITE);     //縦軸
 
   //グラフ目盛
@@ -307,19 +326,17 @@ void makeGraphArea() {
   //横軸
   canvas.drawFastVLine(gx(hSpace*1), gy(2), 5, ILI9341_WHITE);    //1h
   canvas.drawFastVLine(gx(hSpace*2), gy(2), 5, ILI9341_WHITE);    //2h
-  drawText(gx(hSpace*2 - 10), gy(-18), "2h", &FreeSans9pt7b, ILI9341_WHITE);
   canvas.drawFastVLine(gx(hSpace*3), gy(2), 5, ILI9341_WHITE);    //3h
+  drawText(gx(hSpace*3 - 10), gy(-18), "3h", &FreeSans9pt7b, ILI9341_WHITE);
   canvas.drawFastVLine(gx(hSpace*4), gy(2), 5, ILI9341_WHITE);   //4h
-  drawText(gx(hSpace*4 - 10), gy(-18), "4h", &FreeSans9pt7b, ILI9341_WHITE);
   canvas.drawFastVLine(gx(hSpace*5), gy(2), 5, ILI9341_WHITE);   //5h
   canvas.drawFastVLine(gx(hSpace*6), gy(2), 5, ILI9341_WHITE);   //6h
   drawText(gx(hSpace*6 - 10), gy(-18), "6h", &FreeSans9pt7b, ILI9341_WHITE);
   canvas.drawFastVLine(gx(hSpace*7), gy(2), 5, ILI9341_WHITE);   //7h
   canvas.drawFastVLine(gx(hSpace*8), gy(2), 5, ILI9341_WHITE);   //8h
-  drawText(gx(hSpace*8 - 10), gy(-18), "8h", &FreeSans9pt7b, ILI9341_WHITE);
   canvas.drawFastVLine(gx(hSpace*9), gy(2), 5, ILI9341_WHITE);   //9h
-  canvas.drawFastVLine(gx(hSpace*10), gy(-2), -(TFT_HEIGHT - oy - 5), ILI9341_WHITE);  //10h
-  drawText(gx(hSpace*10 - 22), gy(-18), "10h", &FreeSans9pt7b, ILI9341_WHITE);
+  drawText(gx(hSpace*9 - 10), gy(-18), "9h", &FreeSans9pt7b, ILI9341_WHITE);
+  canvas.drawFastVLine(gx(280), gy(-2), -(TFT_HEIGHT - oy - 5), ILI9341_WHITE);  //10h
 }
 
 int graph() {
@@ -327,11 +344,10 @@ int graph() {
   makeGraphArea(); // グラフ領域描写
 
   // グラフへのプロット
-  for (int i = 0; i < 300; i++) {
+  for (int i = 0; i < 280; i++) {
     if (plot[i] > 20) {
-      canvas.fillCircle(gx(i), gy(plot[i]*135/100), 1, ILI9341_ORANGE);
+      canvas.fillCircle(gx(i), gy((plot[i] - 20)*135/100), 1, ILI9341_ORANGE);
     }
-    
   }
   
   // ボタン描画（左上x, 左上y, wide, high, ラベル, フォント, ボタン色, ラベル色）
@@ -348,53 +364,107 @@ int graph() {
   return page;
 }
 
-int stop_confirm() {
+int confirm_stop() {
   static int confirm_progress = 0;
   canvas.fillScreen(ILI9341_BLACK);   //背景色リセット
 
-  canvas.drawCircle(50, 120, 5, ILI9341_WHITE);
-  canvas.drawCircle(150, 120, 5, ILI9341_WHITE);
-  canvas.drawCircle(250, 120, 5, ILI9341_WHITE);
+  drawCenteredText(50, "Are you sure?", &FreeSans18pt7b, ILI9341_WHITE);
+
+  canvas.drawCircle(50, 120, 45, ILI9341_WHITE);
+  canvas.drawCircle(160, 120, 45, ILI9341_WHITE);
+  canvas.drawCircle(270, 120, 45, ILI9341_WHITE);
 
   switch (confirm_progress) {
     case 0:
-      canvas.fillCircle(50, 120, 20, ILI9341_GREEN);
+      drawTextCenterAlign(50, 120, "TOUCH", &FreeSans9pt7b, ILI9341_WHITE);
       if (touch_status == TOUCH_START) {  // タッチされていれば
         // ボタンタッチエリア検出
-        if (BUTTON_TOUCH(30, 100, 100, 100)){
+        if (BUTTON_TOUCH(30, 70, 100, 100)){
           confirm_progress = 1;
           tone(sound,3000,100);
         }
       }
       break;
     case 1:
-      canvas.fillCircle(50, 120, 20, ILI9341_GREEN);
-      canvas.fillCircle(150, 120, 20, ILI9341_GREEN);
+      canvas.fillCircle(50, 120, 40, ILI9341_GREEN);
+      drawTextCenterAlign(160, 120, "TOUCH", &FreeSans9pt7b, ILI9341_WHITE);
       if (touch_status == TOUCH_START) {  // タッチされていれば
         // ボタンタッチエリア検出
-        if (BUTTON_TOUCH(120, 100, 100, 100)){
+        if (BUTTON_TOUCH(120, 70, 100, 100)){
           confirm_progress = 2;
           tone(sound,3000,100);
         }
       }
       break;
     case 2:
-      canvas.fillCircle(50, 120, 20, ILI9341_GREEN);
-      canvas.fillCircle(150, 120, 20, ILI9341_GREEN);
-      canvas.fillCircle(250, 120, 20, ILI9341_GREEN);
+      canvas.fillCircle(50, 120, 40, ILI9341_GREEN);
+      canvas.fillCircle(160, 120, 40, ILI9341_GREEN);
+      drawTextCenterAlign(270, 120, "TOUCH", &FreeSans9pt7b, ILI9341_WHITE);
       if (touch_status == TOUCH_START) {  // タッチされていれば
         // ボタンタッチエリア検出
-        if (BUTTON_TOUCH(220, 100, 100, 100)){
+        if (BUTTON_TOUCH(220, 70, 100, 100)){
           confirm_progress = 3;
           tone(sound,3000,100);
         }
       }
       break;
     case 3:
-      ohuro(sound);
-      page = MENU;
-      is_recording = false;
+      canvas.fillCircle(50, 120, 40, ILI9341_GREEN);
+      canvas.fillCircle(160, 120, 40, ILI9341_GREEN);
+      canvas.fillCircle(270, 120, 40, ILI9341_GREEN);
+      confirm_progress = 4;
+      break;
+    default:
       break;
   }
+
+  drawButton(90, 185, 140, 50, "Cancel", &FreeSans18pt7b, ILI9341_ORANGE, ILI9341_WHITE);
+
+  //スプライトをディスプレイ表示
+  tft.drawRGBBitmap(0, 0, canvas.getBuffer(), TFT_WIDTH, TFT_HEIGHT);
+
+  if (touch_status == TOUCH_START) {  // タッチされていれば
+    // ボタンタッチエリア検出
+    if (BUTTON_TOUCH(90, 185, 140, 50)){
+      confirm_progress = 0;
+      page = RECORDING;
+      tone(sound,3000,100);
+    }
+  }
+
+  if (confirm_progress >= 4) {
+      confirm_progress = 0;
+      page = MENU;
+      is_recording = false;
+      ohuro(sound);
+  }
+
   return page;
+}
+
+void page_refresh() {
+  switch(page){
+    case WELCOME:
+      welcome();
+      break;
+    case MENU:
+      menu();
+      break;
+    case CONFIRM_START:
+      confirm_start();
+      break;
+    case RECORDING:
+      recording();
+      break;
+    case GRAPH:
+      graph();
+      break;
+    case CONFIRM_STOP:
+      confirm_stop();
+      break;
+    default:
+      Serial.print("Page number error!!");
+      page = MENU;
+      break;
+  }
 }

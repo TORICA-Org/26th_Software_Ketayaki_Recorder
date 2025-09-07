@@ -6,7 +6,7 @@
 
 /****************** SDカード書き込み **************************/
 void writeSdData(float SD_time[], float plot[]) {
-  myFile = SD.open(SD_FILENAME, FILE_WRITE); // SDカードのファイルを開く
+  myFile = SD.open(LOG_FILE_NAME, FILE_WRITE); // SDカードのファイルを開く
   
   // データ書き込み
   if (myFile) { // ファイルが開けたら
@@ -21,74 +21,58 @@ void writeSdData(float SD_time[], float plot[]) {
   }
 }
 
-/******************* SD再認識のため ********************/
-bool reinitializeSD() {
-  SPI.end();               // SPIを完全に停止
+/******************* SD認識のため ********************/
+bool initializeSD() {
+  //SPI.end();
+  //delay(100);
+  //SPI.begin();
+  //delay(100);
+  find_SD = SD.begin(SD_CS);
+  for (int i = 0; ; i++) {
+    sprintf(LOG_FILE_NAME, "/KetayakiLog%03d.csv", i);
+    if (!(SD.exists(LOG_FILE_NAME))) {
+      Serial.print("\n");
+      Serial.print(LOG_FILE_NAME);
+      break;
+    }
+  }
+  return find_SD;
+}
 
-  //pinMode(TFT_TOUCH_SD_MOSI, OUTPUT);
-  //digitalWrite(TFT_TOUCH_SD_MOSI, LOW);
-  //pinMode(TOUCH_SD_MISO, OUTPUT);
-  //digitalWrite(TOUCH_SD_MISO, LOW);
-  //pinMode(TFT_TOUCH_SD_SCK, OUTPUT);
-  //digitalWrite(TFT_TOUCH_SD_SCK, LOW);
-  //pinMode(SD_CS, OUTPUT);
-  //digitalWrite(SD_CS, LOW);
-  
-  delay(100);
-  SPI.begin();             // 再開
-  delay(100);
-  return SD.begin(SD_CS);
+void reset_parameters() {
+  int record_index = 0;
+  int backup_index = 0;
+  int plot_index = 0;
+  memset(backup, 0, sizeof(plot));
+  memset(plot, 0, sizeof(plot));
 }
 
 
 void setup(){
   analogReadResolution(12);
-  Serial.begin(115200);
   pinMode(Pin_thermistor, INPUT);
-  pinMode(LED_BUILTIN, OUTPUT);
-}
-
-void loop(){
-  update_smoothed_celsius(Pin_thermistor);
-
-  /********************グラフプロット & SD保存用********************/
-  static unsigned long last_time_stamp_ms = 0;
-  static int backup_index = 0;
-
-  if(is_recording == true){
-    unsigned long now_ms = millis();
-    if (now_ms - last_time_stamp_ms >= 1000) {
-      last_time_stamp_ms = now_ms;
-      time_duration_s = (now_ms - time_start_ms) / 1000;
-      time_hour = time_duration_s / 3600;
-      time_minute = (time_duration_s % 3600) / 60;
-      time_second = (time_duration_s % 3600 % 60);
-    }
-    if (now_ms - last_time_stamp_ms >= 60 * 1000) {
-      Serial.println("add backup!");
-      backup[backup_index] = smoothed_celsius;
-      backup_index++;
-    }
-    if (now_ms - last_time_stamp_ms >= 2 * 60 * 1000) {
-      Serial.println("add plot!");
-      plot[plot_index] = smoothed_celsius;
-      plot_index++;
-    }
-  }
-}
-
-
-
-
-void setup1(){
+  
   Serial.begin(115200); 
+
   pinMode(LED_BUILTIN, OUTPUT);
 
   //SPI0
   SPI.setTX(TFT_TOUCH_SD_MOSI);
   SPI.setSCK(TFT_TOUCH_SD_SCK);
   SPI.setRX(TOUCH_SD_MISO);
+  
+}
 
+void loop(){
+  update_smoothed_celsius(Pin_thermistor);
+}
+
+void setup1(){
+  //SPI0
+  SPI.setTX(TFT_TOUCH_SD_MOSI);
+  SPI.setSCK(TFT_TOUCH_SD_SCK);
+  SPI.setRX(TOUCH_SD_MISO);
+  
   //グラフィック設定
   tft.begin();
   tft.setRotation(1);                         //画面回転（0~3）
@@ -99,67 +83,90 @@ void setup1(){
   //タッチパネル設定
   ts.begin();                   // タッチパネル初期化
   ts.setRotation(3); // タッチパネルの回転(画面回転が3ならここは1)
-
+  
   // SDカードの初期化
-  if (!(find_SD = SD.begin(SD_CS))) {
-    Serial.println("SDカードの初期化に失敗しました");
-    drawText(50, 50, "SD card not found!", &FreeSans12pt7b, ILI9341_RED);
-  } else {
+  if (initializeSD()) {
     Serial.println("SDカードが初期化されました");
+  } else {
+    Serial.println("SDカードの初期化に失敗しました");
+    drawCenteredText(120, "SD card not found!", &FreeSans12pt7b, ILI9341_RED);
   }
 }
 
 void loop1(){
-  if (ts.touched() == true) {  // タッチされていれば
-    digitalWrite(LED_BUILTIN, HIGH);
-    switch(touch_status){
-      case RELEASE:
-      {
-        TS_Point tPoint = ts.getPoint();  // タッチ座標を取得
-        touch_status = TOUCH_START;
-        touch_x = (tPoint.x-400) * TFT_WIDTH / (4095-550);  // タッチx座標をTFT画面の座標に換算
-        touch_y = (tPoint.y-230) * TFT_HEIGHT / (4095-420); // タッチy座標をTFT画面の座標に換算
+
+  unsigned long now_ms = millis();
+
+  if(is_recording == true){
+
+    if (now_ms - last_time_stamp_ms >= 1000) {
+
+      last_time_stamp_ms = now_ms;
+      time_duration_s = (now_ms - time_start_ms) / 1000;
+      time_hour = time_duration_s / 3600;
+      time_minute = (time_duration_s % 3600) / 60;
+      time_second = time_duration_s % 3600 % 60;
+
+      if (record_index == 0 || record_index % 60 == 0) {
+        if (find_SD) {
+          char buff[64];
+          sprintf(buff, "%02u:%02u:%02u,%.3f°C\n", time_hour, time_minute, time_second, smoothed_celsius);
+          myFile = SD.open(LOG_FILE_NAME, FILE_WRITE);
+          if (myFile) {
+            myFile.print(buff);
+            myFile.close();
+            Serial.print("\nfile write done!");
+          }
+          else {
+            Serial.print("\nfile open failed!");
+          }
+        }
+        backup[backup_index] = smoothed_celsius;
+        Serial.print("\nadd backup!");
+        backup_index++;
       }
-        break;
-      case TOUCH_START:
-        touch_status = TOUCHING;
-        break;
-      case TOUCHING:
-        break;
+
+      if (record_index == 0 || record_index % 120 == 0) {
+        if (plot_index > sizeof(plot)) {
+          plot_index = 0;
+        }
+        plot[plot_index] = smoothed_celsius;
+        Serial.print("\nadd plot!");
+        plot_index++;
+      }
+
+      Serial.print(".");
+      record_index++;
     }
   }
-  else {
-    digitalWrite(LED_BUILTIN, LOW);
-    touch_status = RELEASE;
-  }
-  //Serial.print("TOUCH_STATUS: ");
-  //Serial.println(touch_status);
 
-  switch(page){
-    case WELCOME:
-      is_recording = false;
-      SSR_ON = false;
-      welcome();
-      break;
-    case MENU:
+
+  if (now_ms - tft_time_stamp_ms >= 100) {
+    tft_time_stamp_ms = now_ms;
+    if (ts.touched() == true) {  // タッチされていれば
+      digitalWrite(LED_BUILTIN, HIGH);
+      switch(touch_status){
+        case RELEASE:
+        {
+          TS_Point tPoint = ts.getPoint();  // タッチ座標を取得
+          touch_status = TOUCH_START;
+          touch_x = (tPoint.x-400) * TFT_WIDTH / (4095-550);  // タッチx座標をTFT画面の座標に換算
+          touch_y = (tPoint.y-230) * TFT_HEIGHT / (4095-420); // タッチy座標をTFT画面の座標に換算
+        }
+          break;
+        case TOUCH_START:
+          touch_status = TOUCHING;
+          break;
+        case TOUCHING:
+          break;
+      }
+    }
+    else {
       digitalWrite(LED_BUILTIN, LOW);
-      menu();
-      break;
-    case START_CONFIRM:
-      start_confirm();
-      break;
-    case RECORDING:
-      recording();
-      break;
-    case GRAPH:
-      graph();
-      break;
-    case STOP_CONFIRM:
-      stop_confirm();
-    default:
-      Serial.print("Page number error!!");
-      page = MENU;
-      break;
+      touch_status = RELEASE;
+    }
+    //Serial.print("TOUCH_STATUS: ");
+    //Serial.println(touch_status);
+    page_refresh();
   }
-  delay(200);
 }

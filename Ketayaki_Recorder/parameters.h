@@ -14,19 +14,23 @@
 #define TFT_RST 21 // Reset 
 #define TFT_DC 20  // D/C
 
-// #define sound 28 // 他励式ブザー用
-#define sound 0 // 他励式ブザー用
+ #define sound 28 // 他励式ブザー用
+// #define sound 0 // 他励式ブザー用
 
 
 const int Pin_thermistor = 26; // サーミスタ用
 float smoothed_celsius = 0.0; //平滑化後の温度 ←直温度取得1回目の値で初期化
 
 //各種計算用変数
+unsigned long last_time_stamp_ms = 0;
+unsigned long tft_time_stamp_ms = 0;
 unsigned long time_start_ms = 0;   //開始時刻
 unsigned long time_duration_s = 0;   //経過時間
 unsigned long time_hour = 0;   //経過時間・残り時間計算用(ディスプレイ表示用)
 unsigned long time_minute = 0;
 unsigned long time_second = 0;
+int record_index = 0;
+int backup_index = 0;
 double SD_time_loop;    //SD保存用[sec]
 
 float data; //グラフプロット時に使用
@@ -48,21 +52,11 @@ int no2 = 0;
 int no3 = 0;
 int no_calc = 0;
 
-
-#define SD_FILENAME "/Reflow_Tempdata.csv"
+char LOG_FILE_NAME[32]; // 記録CSV名
 File myFile;    // Fileクラスのインスタンス
 //SD保存用の配列
-float plot[300];
+float plot[280];
 float backup[1024];
 int num_loop = 0; //core0のloopが回った回数を数える
 
-enum PAGE_ENUM { // ページ用列挙型
-  WELCOME,
-  MENU,
-  START_CONFIRM,
-  RECORDING,
-  GRAPH,
-  STOP_CONFIRM
-};
-PAGE_ENUM page = WELCOME;
 
