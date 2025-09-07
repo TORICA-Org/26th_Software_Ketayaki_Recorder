@@ -55,7 +55,7 @@ float update_smoothed_celsius(int Pin_thermistor_num){
     smoothed_celsius = (alpha * celsius + (1.0 - alpha) * smoothed_celsius);
     isFirstRun = true;
   }
-  Serial.print("前平滑温度:");
-  Serial.println(smoothed_celsius);
+  // Serial.print("前平滑温度:");
+  // Serial.println(smoothed_celsius);
   return smoothed_celsius;
 }

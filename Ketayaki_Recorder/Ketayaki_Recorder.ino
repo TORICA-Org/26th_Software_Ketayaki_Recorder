@@ -65,10 +65,12 @@ void loop(){
       time_second = (time_duration_s % 3600 % 60);
     }
     if (now_ms - last_time_stamp_ms >= 60 * 1000) {
+      Serial.println("add backup!");
       backup[backup_index] = smoothed_celsius;
       backup_index++;
     }
     if (now_ms - last_time_stamp_ms >= 2 * 60 * 1000) {
+      Serial.println("add plot!");
       plot[plot_index] = smoothed_celsius;
       plot_index++;
     }

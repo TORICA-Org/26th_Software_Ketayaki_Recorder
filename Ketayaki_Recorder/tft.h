@@ -153,7 +153,6 @@ int menu(){
     if (BUTTON_TOUCH(20, 95, 280, 60)){
       tone(sound,3000,100);
       page = START_CONFIRM;
-      l = 0;
     }
     if (BUTTON_TOUCH(20, 165, 280, 60)){
       tone(sound,3000,100);
@@ -245,13 +244,9 @@ int recording(){
   canvas.setCursor(140, 90);          // 表示座標指定
   canvas.print(smoothed_celsius);
 
-
-  
-  canvas.setTextColor(ILI9341_WHITE); 
-  canvas.setFont(&FreeSans9pt7b);  // フォント指定
-  canvas.setCursor(3, 153);          // 表示座標指定
-  canvas.print(time_duration_s / 1000);    //リフロー開始からの経過時間 
-  canvas.print("s");
+  char buff[20];
+  sprintf(buff, "%02uh%02um%02us", time_hour, time_minute, time_second);
+  drawCenteredText(153, buff, &FreeSans18pt7b, ILI9341_WHITE);
   
   // ボタン描画（左上x, 左上y, wide, high, ラベル, フォント, ボタン色, ラベル色）
   drawButton(25, 185, 140, 50, "Graph", &FreeSans18pt7b, ILI9341_ORANGE, ILI9341_WHITE); // OFFボタン
@@ -276,51 +271,55 @@ int recording(){
 }
 
 /******************** グラフ ********************/
-const int ox = 35;
-const int oy = 25;
+const int ox = 30;
+const int oy = 20;
+int vSpace = 15;
+int hSpace = 28;
 int gx (int input) {return input + ox;}
 int gy (int input) {return TFT_HEIGHT - (input + oy);}
 
 void makeGraphArea() {
   //グラフ軸
-  canvas.drawFastHLine(gx(0), gy(0), TFT_WIDTH - ox - 5, ILI9341_WHITE);     //横軸
+  canvas.drawFastHLine(gx(0), gy(0), hSpace*10, ILI9341_WHITE);     //横軸
   canvas.drawFastVLine(gx(0), gy(0), -(TFT_HEIGHT - oy - 5), ILI9341_WHITE);     //縦軸
 
   //グラフ目盛
   //縦軸
-  canvas.drawFastHLine(gx(-2), gy(210), 5, ILI9341_WHITE);  //150
-  drawText(gx(3), gy(210), "150", &FreeSans9pt7b, ILI9341_WHITE);
-  canvas.drawFastHLine(gx(-1), gy(195), 3, ILI9341_WHITE);  //140
-  canvas.drawFastHLine(gx(-1), gy(180), 3, ILI9341_WHITE);  //130
-  canvas.drawFastHLine(gx(-1), gy(165), 3, ILI9341_WHITE);  //120
-  canvas.drawFastHLine(gx(-1), gy(150), 3, ILI9341_WHITE);  //110
-  canvas.drawFastHLine(gx(-2), gy(135), 5, ILI9341_WHITE);  //100
-  drawText(gx(3), gy(135), "100", &FreeSans9pt7b, ILI9341_WHITE);
-  canvas.drawFastHLine(gx(-1), gy(120), 3, ILI9341_WHITE);   //90
-  canvas.drawFastHLine(gx(-1), gy(105), 3, ILI9341_WHITE);   //80
-  canvas.drawFastHLine(gx(-1), gy(90), 3, ILI9341_WHITE);    //70
-  canvas.drawFastHLine(gx(-1), gy(75), 3, ILI9341_WHITE);    //60
-  canvas.drawFastHLine(gx(-2), gy(60), 5, ILI9341_WHITE);    //50
-  drawText(gx(3), gy(60), "50", &FreeSans9pt7b, ILI9341_WHITE);
-  canvas.drawFastHLine(gx(-1), gy(45), 3, ILI9341_WHITE);    //40
-  canvas.drawFastHLine(gx(-1), gy(30), 3, ILI9341_WHITE);    //30
-  canvas.drawFastHLine(gx(-1), gy(15), 3, ILI9341_WHITE);    //20
-
+  canvas.drawFastHLine(gx(-2), gy(vSpace*14), 5, ILI9341_WHITE);   //150
+  drawText(gx(-33), gy(vSpace*14 - 6), "150", &FreeSans9pt7b, ILI9341_WHITE);
+  canvas.drawFastHLine(gx(-1), gy(vSpace*13), 3, ILI9341_WHITE);   //140
+  canvas.drawFastHLine(gx(-1), gy(vSpace*12), 3, ILI9341_WHITE);   //130
+  canvas.drawFastHLine(gx(-1), gy(vSpace*11), 3, ILI9341_WHITE);   //120
+  canvas.drawFastHLine(gx(-1), gy(vSpace*10), 3, ILI9341_WHITE);   //110
+  canvas.drawFastHLine(gx(-2), gy(vSpace*9), 5, ILI9341_WHITE);    //100
+  drawText(gx(-33), gy(vSpace*9 - 6), "100", &FreeSans9pt7b, ILI9341_WHITE);
+  canvas.drawFastHLine(gx(-1), gy(vSpace*8), 3, ILI9341_WHITE);    //90
+  canvas.drawFastHLine(gx(-1), gy(vSpace*7), 3, ILI9341_WHITE);    //80
+  canvas.drawFastHLine(gx(-1), gy(vSpace*6), 3, ILI9341_WHITE);    //70
+  canvas.drawFastHLine(gx(-1), gy(vSpace*5), 3, ILI9341_WHITE);    //60
+  canvas.drawFastHLine(gx(-2), gy(vSpace*4), 5, ILI9341_WHITE);    //50
+  drawText(gx(-23), gy(vSpace*4 - 6), "50", &FreeSans9pt7b, ILI9341_WHITE);
+  canvas.drawFastHLine(gx(-1), gy(vSpace*3), 3, ILI9341_WHITE);    //40
+  canvas.drawFastHLine(gx(-1), gy(vSpace*2), 3, ILI9341_WHITE);    //30
+  canvas.drawFastHLine(gx(-1), gy(vSpace*1), 3, ILI9341_WHITE);    //20
+  drawText(gx(-23), gy(-6), "20", &FreeSans9pt7b, ILI9341_WHITE);
 
   //横軸
-  canvas.drawFastVLine(gx(30), gy(2), 5, ILI9341_WHITE);    //1h
-  canvas.drawFastVLine(gx(60), gy(2), 5, ILI9341_WHITE);    //2h
-  canvas.drawFastVLine(gx(90), gy(2), 5, ILI9341_WHITE);    //3h
-  drawText(gx(90), gy(-5), "3h", &FreeSans9pt7b, ILI9341_WHITE);
-  canvas.drawFastVLine(gx(120), gy(2), 5, ILI9341_WHITE);   //4h
-  canvas.drawFastVLine(gx(150), gy(2), 5, ILI9341_WHITE);   //5h
-  canvas.drawFastVLine(gx(180), gy(2), 5, ILI9341_WHITE);   //6h
-  drawText(gx(180), gy(-5), "6h", &FreeSans9pt7b, ILI9341_WHITE);
-  canvas.drawFastVLine(gx(210), gy(2), 5, ILI9341_WHITE);   //7h
-  canvas.drawFastVLine(gx(240), gy(2), 5, ILI9341_WHITE);   //8h
-  canvas.drawFastVLine(gx(270), gy(2), 5, ILI9341_WHITE);   //9h
-  drawText(gx(270), gy(-5), "9h", &FreeSans9pt7b, ILI9341_WHITE);
-  canvas.drawFastVLine(gx(300), gy(2), 5, ILI9341_WHITE);  //10h
+  canvas.drawFastVLine(gx(hSpace*1), gy(2), 5, ILI9341_WHITE);    //1h
+  canvas.drawFastVLine(gx(hSpace*2), gy(2), 5, ILI9341_WHITE);    //2h
+  drawText(gx(hSpace*2 - 10), gy(-18), "2h", &FreeSans9pt7b, ILI9341_WHITE);
+  canvas.drawFastVLine(gx(hSpace*3), gy(2), 5, ILI9341_WHITE);    //3h
+  canvas.drawFastVLine(gx(hSpace*4), gy(2), 5, ILI9341_WHITE);   //4h
+  drawText(gx(hSpace*4 - 10), gy(-18), "4h", &FreeSans9pt7b, ILI9341_WHITE);
+  canvas.drawFastVLine(gx(hSpace*5), gy(2), 5, ILI9341_WHITE);   //5h
+  canvas.drawFastVLine(gx(hSpace*6), gy(2), 5, ILI9341_WHITE);   //6h
+  drawText(gx(hSpace*6 - 10), gy(-18), "6h", &FreeSans9pt7b, ILI9341_WHITE);
+  canvas.drawFastVLine(gx(hSpace*7), gy(2), 5, ILI9341_WHITE);   //7h
+  canvas.drawFastVLine(gx(hSpace*8), gy(2), 5, ILI9341_WHITE);   //8h
+  drawText(gx(hSpace*8 - 10), gy(-18), "8h", &FreeSans9pt7b, ILI9341_WHITE);
+  canvas.drawFastVLine(gx(hSpace*9), gy(2), 5, ILI9341_WHITE);   //9h
+  canvas.drawFastVLine(gx(hSpace*10), gy(-2), -(TFT_HEIGHT - oy - 5), ILI9341_WHITE);  //10h
+  drawText(gx(hSpace*10 - 22), gy(-18), "10h", &FreeSans9pt7b, ILI9341_WHITE);
 }
 
 int graph() {
@@ -329,7 +328,10 @@ int graph() {
 
   // グラフへのプロット
   for (int i = 0; i < 300; i++) {
-    canvas.drawFastHLine(gx(i), gy(plot[i]*135/100), 1, ILI9341_ORANGE);
+    if (plot[i] > 20) {
+      canvas.fillCircle(gx(i), gy(plot[i]*135/100), 1, ILI9341_ORANGE);
+    }
+    
   }
   
   // ボタン描画（左上x, 左上y, wide, high, ラベル, フォント, ボタン色, ラベル色）
@@ -356,7 +358,7 @@ int stop_confirm() {
 
   switch (confirm_progress) {
     case 0:
-      canvas.fillCircle(50, 120, ILI9341_GREEN);
+      canvas.fillCircle(50, 120, 20, ILI9341_GREEN);
       if (touch_status == TOUCH_START) {  // タッチされていれば
         // ボタンタッチエリア検出
         if (BUTTON_TOUCH(30, 100, 100, 100)){
@@ -366,8 +368,8 @@ int stop_confirm() {
       }
       break;
     case 1:
-      canvas.fillCircle(50, 120, ILI9341_GREEN);
-      canvas.fillCircle(150, 120, ILI9341_GREEN);
+      canvas.fillCircle(50, 120, 20, ILI9341_GREEN);
+      canvas.fillCircle(150, 120, 20, ILI9341_GREEN);
       if (touch_status == TOUCH_START) {  // タッチされていれば
         // ボタンタッチエリア検出
         if (BUTTON_TOUCH(120, 100, 100, 100)){
@@ -377,9 +379,9 @@ int stop_confirm() {
       }
       break;
     case 2:
-      canvas.fillCircle(50, 120, ILI9341_GREEN);
-      canvas.fillCircle(150, 120, ILI9341_GREEN);
-      canvas.fillCircle(250, 120, ILI9341_GREEN);
+      canvas.fillCircle(50, 120, 20, ILI9341_GREEN);
+      canvas.fillCircle(150, 120, 20, ILI9341_GREEN);
+      canvas.fillCircle(250, 120, 20, ILI9341_GREEN);
       if (touch_status == TOUCH_START) {  // タッチされていれば
         // ボタンタッチエリア検出
         if (BUTTON_TOUCH(220, 100, 100, 100)){
@@ -389,9 +391,10 @@ int stop_confirm() {
       }
       break;
     case 3:
-      ohuro();
+      ohuro(sound);
       page = MENU;
       is_recording = false;
       break;
   }
+  return page;
 }

@@ -14,7 +14,8 @@
 #define TFT_RST 21 // Reset 
 #define TFT_DC 20  // D/C
 
-#define sound 28 // 他励式ブザー用
+// #define sound 28 // 他励式ブザー用
+#define sound 0 // 他励式ブザー用
 
 
 const int Pin_thermistor = 26; // サーミスタ用
