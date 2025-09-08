@@ -1,6 +1,9 @@
 #include <Arduino.h>
 #include "ohuro.h"
 extern bool initializeSD();
+extern void reset_parameters();
+extern void toneByFlag(int _pin, int _freq, int _dur);
+extern void ohuroByFlag(int _pin);
 
 #include <Adafruit_GFX.h> // ライブラリマネージャで"Adafruit GFX Library"と依存ライブラリをインストール(Install all)
 #include <Adafruit_ILI9341.h> // ライブラリマネージャで"Adafruit ILI9341"と依存ライブラリをインストール(Install all)
@@ -101,7 +104,7 @@ void drawButton(int x, int y, int w, int h, const char* label, const GFXfont* fo
 }
 
 /******************** ボタンタッチ判定用関数 ********************/
-bool BUTTON_TOUCH(int _x, int _y, int _w, int _h) {
+bool TOUCH_AREA(int _x, int _y, int _w, int _h) {
   return (_x <= touch_x && touch_x <= _x + _w && _y <= touch_y && touch_y <= _y + _h);
 }
 
@@ -171,12 +174,12 @@ int menu(){
 
   if (touch_status == TOUCH_START) {  // タッチされていれば
     // ボタンタッチエリア検出
-    if (BUTTON_TOUCH(20, 95, 280, 60)){
-      tone(sound,3000,100);
+    if (TOUCH_AREA(20, 95, 280, 60)){
+      toneByFlag(sound,3000,100);
       page = CONFIRM_START;
     }
-    if (BUTTON_TOUCH(20, 165, 280, 60)){
-      tone(sound,3000,100);
+    if (TOUCH_AREA(20, 165, 280, 60)){
+      toneByFlag(sound,3000,100);
       initializeSD();
     }
 
@@ -218,20 +221,18 @@ int confirm_start(){
 
   if (touch_status == TOUCH_START) {  // タッチされていれば
     // ボタンタッチエリア検出
-    if (BUTTON_TOUCH(15, 130, 140, 85)){
+    if (TOUCH_AREA(15, 130, 140, 85)){
       page = MENU;
-      tone(sound,3000,100);
+      toneByFlag(sound,3000,100);
     }
-    if (BUTTON_TOUCH(165, 130, 140, 85)){
+    if (TOUCH_AREA(165, 130, 140, 85)){
       page = RECORDING;
       time_start_ms = millis();
-      time_duration_s = 0;
-      record_index = 0;
-      backup_index = 0;
+      reset_parameters();
       is_recording = true;
-      tone(sound,3000,100);
+      toneByFlag(sound,3000,100);
       delay(100);
-      tone(sound,3000,700);
+      toneByFlag(sound,3000,700);
     }
   }
   return page;
@@ -277,13 +278,13 @@ int recording(){
 
   if (touch_status == TOUCH_START) {  // タッチされていれば
     // ボタンタッチエリア検出
-    if (BUTTON_TOUCH(25, 185, 140, 50)){
+    if (TOUCH_AREA(25, 185, 140, 50)){
       page = GRAPH;   // 範囲内ならpage11 グラフ
-      tone(sound,3000,100);
+      toneByFlag(sound,3000,100);
     }
-    if (BUTTON_TOUCH(170, 185, 140, 50)){
+    if (TOUCH_AREA(170, 185, 140, 50)){
       page = CONFIRM_STOP;
-      tone(sound,3000,100);
+      toneByFlag(sound,3000,100);
     }
   }
   return page;
@@ -342,6 +343,7 @@ void makeGraphArea() {
 int graph() {
   canvas.fillScreen(ILI9341_BLACK);   //背景色リセット
   makeGraphArea(); // グラフ領域描写
+  canvas.drawFastVLine(gx(plot_index), gy(0), -(TFT_HEIGHT - oy - 5), ILI9341_CYAN);
 
   // グラフへのプロット
   for (int i = 0; i < 280; i++) {
@@ -357,7 +359,7 @@ int graph() {
   tft.drawRGBBitmap(0, 0, canvas.getBuffer(), TFT_WIDTH, TFT_HEIGHT);
   
   if (touch_status == TOUCH_START) {  // タッチされていれば
-    tone(sound,3000,100);
+    toneByFlag(sound,3000,100);
     page = RECORDING;
   }
   
@@ -377,22 +379,24 @@ int confirm_stop() {
   switch (confirm_progress) {
     case 0:
       drawTextCenterAlign(50, 120, "TOUCH", &FreeSans9pt7b, ILI9341_WHITE);
+      //canvas.drawRect(0, 70, 100, 100, ILI9341_WHITE);
       if (touch_status == TOUCH_START) {  // タッチされていれば
         // ボタンタッチエリア検出
-        if (BUTTON_TOUCH(30, 70, 100, 100)){
+        if (TOUCH_AREA(0, 70, 100, 100)){
           confirm_progress = 1;
-          tone(sound,3000,100);
+          toneByFlag(sound,3000,100);
         }
       }
       break;
     case 1:
       canvas.fillCircle(50, 120, 40, ILI9341_GREEN);
       drawTextCenterAlign(160, 120, "TOUCH", &FreeSans9pt7b, ILI9341_WHITE);
+      //canvas.drawRect(110, 70, 100, 100, ILI9341_WHITE);
       if (touch_status == TOUCH_START) {  // タッチされていれば
         // ボタンタッチエリア検出
-        if (BUTTON_TOUCH(120, 70, 100, 100)){
+        if (TOUCH_AREA(110, 70, 100, 100)){
           confirm_progress = 2;
-          tone(sound,3000,100);
+          toneByFlag(sound,3000,100);
         }
       }
       break;
@@ -400,11 +404,12 @@ int confirm_stop() {
       canvas.fillCircle(50, 120, 40, ILI9341_GREEN);
       canvas.fillCircle(160, 120, 40, ILI9341_GREEN);
       drawTextCenterAlign(270, 120, "TOUCH", &FreeSans9pt7b, ILI9341_WHITE);
+      //canvas.drawRect(220, 70, 100, 100, ILI9341_WHITE);
       if (touch_status == TOUCH_START) {  // タッチされていれば
         // ボタンタッチエリア検出
-        if (BUTTON_TOUCH(220, 70, 100, 100)){
+        if (TOUCH_AREA(220, 70, 100, 100)){
           confirm_progress = 3;
-          tone(sound,3000,100);
+          toneByFlag(sound,3000,100);
         }
       }
       break;
@@ -425,10 +430,10 @@ int confirm_stop() {
 
   if (touch_status == TOUCH_START) {  // タッチされていれば
     // ボタンタッチエリア検出
-    if (BUTTON_TOUCH(90, 185, 140, 50)){
+    if (TOUCH_AREA(90, 185, 140, 50)){
       confirm_progress = 0;
       page = RECORDING;
-      tone(sound,3000,100);
+      toneByFlag(sound,3000,100);
     }
   }
 
@@ -436,13 +441,13 @@ int confirm_stop() {
       confirm_progress = 0;
       page = MENU;
       is_recording = false;
-      ohuro(sound);
+      ohuroByFlag(sound);
   }
 
   return page;
 }
 
-void page_refresh() {
+void update_page() {
   switch(page){
     case WELCOME:
       welcome();
@@ -466,5 +471,30 @@ void page_refresh() {
       Serial.print("Page number error!!");
       page = MENU;
       break;
+  }
+}
+
+void detect_touch() {
+  if (ts.touched() == true) {  // タッチされていれば
+    digitalWrite(LED_BUILTIN, HIGH);
+    switch(touch_status){
+      case RELEASE:
+      {
+        TS_Point tPoint = ts.getPoint();  // タッチ座標を取得
+        touch_status = TOUCH_START;
+        touch_x = (tPoint.x-400) * TFT_WIDTH / (4095-550);  // タッチx座標をTFT画面の座標に換算
+        touch_y = (tPoint.y-230) * TFT_HEIGHT / (4095-420); // タッチy座標をTFT画面の座標に換算
+      }
+        break;
+      case TOUCH_START:
+        touch_status = TOUCHING;
+        break;
+      case TOUCHING:
+        break;
+    }
+  }
+  else {
+    digitalWrite(LED_BUILTIN, LOW);
+    touch_status = RELEASE;
   }
 }

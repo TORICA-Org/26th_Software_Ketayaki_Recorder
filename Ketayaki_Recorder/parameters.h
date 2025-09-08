@@ -17,6 +17,12 @@
  #define sound 28 // 他励式ブザー用
 // #define sound 0 // 他励式ブザー用
 
+bool spk_flag = false;
+int spk_pin = 0;
+int spk_freq = 0;
+int spk_dur = 0;
+
+bool ohuro_flag = false;
 
 const int Pin_thermistor = 26; // サーミスタ用
 float smoothed_celsius = 0.0; //平滑化後の温度 ←直温度取得1回目の値で初期化
@@ -29,8 +35,8 @@ unsigned long time_duration_s = 0;   //経過時間
 unsigned long time_hour = 0;   //経過時間・残り時間計算用(ディスプレイ表示用)
 unsigned long time_minute = 0;
 unsigned long time_second = 0;
+int timer_index = 0;
 int record_index = 0;
-int backup_index = 0;
 double SD_time_loop;    //SD保存用[sec]
 
 float data; //グラフプロット時に使用
@@ -40,23 +46,16 @@ int plot_Y;
 int Refresh_SD;
 
 //bool
-bool is_recording = false;  //リフローが始まっているか
-bool find_SD = false;   //SDカードが認識されているか
+bool is_recording = false;  
+bool find_SD = false;  //SDカードが認識されているか
 bool open_SD = false;  //SDカードの書き込みが終わっているか確認
-bool SSR_ON = false;   // ランプ点灯状態格納用
 
-//ディスプレイのタッチ誤認識でautoリフローが止まらないように段階を設ける(「私はロボットではありません」に近いことをしたい)
-//未実装
-int no1 = 0; //Emargencyの計算用
-int no2 = 0;
-int no3 = 0;
-int no_calc = 0;
-
+char LOG_FILE_PATH[32]; // 記録CSV名
 char LOG_FILE_NAME[32]; // 記録CSV名
 File myFile;    // Fileクラスのインスタンス
+int file_index = 0;
 //SD保存用の配列
 float plot[280];
-float backup[1024];
 int num_loop = 0; //core0のloopが回った回数を数える
 
 
